@@ -6,9 +6,7 @@ $id_etudiant = $_SESSION['id_etudiant'];
 $section = $_GET['section'] ?? 'catalogue';
 $msg = "";
 
-// =========================================================
-// TRAITEMENT PDF (Pour l'emprunt)
-// =========================================================
+// Generation du  PDF de l'emprunt
 if (isset($_GET['mode']) && $_GET['mode'] === 'recu_pdf') {
     $sql="SELECT e.Nom, l.Titre, em.Date_Emprunt, em.Date_Retour_Prevue FROM emprunter em JOIN etudiant e ON em.ID_Etudiant=e.ID_Etudiant JOIN exemplaire ex ON em.ID_Exemplaire=ex.ID_Exemplaire JOIN livre l ON ex.ISBN=l.ISBN WHERE em.ID_Emprunt=?";
     $stmt=$pdo->prepare($sql); $stmt->execute([$_GET['id']]); $d=$stmt->fetch();
@@ -23,13 +21,11 @@ if (isset($_GET['mode']) && $_GET['mode'] === 'recu_pdf') {
     exit;
 }
 
-// =========================================================
 // TRAITEMENT DES ACTIONS (POST)
-// =========================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'];
 
-    // --- FONCTIONNALITE : EMPRUNTER UN LIVRE ---
+    // emprunter un livre
     if ($action === 'emprunter') {
         $isbn = $_POST['isbn'];
         // Vérifier stock
@@ -48,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else { $msg = "Plus de stock."; }
     }
 
-    // --- FONCTIONNALITE : RESERVER UN LIVRE ---
+    // reserver livre
     elseif ($action === 'reserver') {
         $pdo->prepare("INSERT INTO reservation (ID_Etudiant, ISBN, Date_Reservation) VALUES (?, ?, NOW())")->execute([$id_etudiant, $_POST['isbn']]);
         $msg = "Réservation confirmée.";
