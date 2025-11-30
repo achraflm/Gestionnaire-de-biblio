@@ -18,10 +18,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdf = time() . "_" . basename($_FILES['pdf_livre']['name']);
                 move_uploaded_file($_FILES['pdf_livre']['tmp_name'], "uploads/" . $pdf);
             }
-            // Catégorie
+            //  chercher la Catégorie
             $stmt = $pdo->prepare("SELECT ID_Categorie FROM categorie_livre WHERE Libelle=?");
             $stmt->execute([$cat]);
             $cat_id = $stmt->fetchColumn();
+            // Créer si n'existe pas
             if (!$cat_id) {
                 $pdo->prepare("INSERT INTO categorie_livre (Libelle) VALUES (?)")->execute([$cat]);
                 $cat_id = $pdo->lastInsertId();
@@ -50,6 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare("UPDATE etudiant SET Nom=?, Prenom=?, Email=?, Mot_de_passe=? WHERE ID_Etudiant=?")
                     ->execute([$nom, $prenom, $email, $mdp, $_POST['id_etudiant']]);
                 $msg = "Étudiant modifié.";
+                // si non on ajoute 
             } else {
                 $pdo->prepare("INSERT INTO etudiant (Nom, Prenom, Email, Mot_de_passe, Date_Inscription) VALUES (?, ?, ?, ?, CURDATE())")
                     ->execute([$nom, $prenom, $email, $mdp]);
@@ -65,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = "Étudiant supprimé.";
         }
 
-        // --- EMPRUNTS / RESERVATIONS ---
+        // --- EMPRUNTS
         elseif ($action === 'valider_resa') {
             $id_res = $_POST['id'];
             $info = $pdo->query("SELECT * FROM reservation WHERE ID_Reservation=$id_res")->fetch();
@@ -75,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("DELETE FROM reservation WHERE ID_Reservation=?")->execute([$id_res]);
             $msg = "Réservation validée.";
         }
+        // RESERVATIONS ---
         elseif ($action === 'retour_livre') {
             $pdo->prepare("UPDATE emprunter SET Date_Retour = CURDATE() WHERE ID_Emprunt=?")->execute([$_POST['id']]);
             $msg = "Retour enregistré.";
@@ -115,7 +118,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php if($msg): ?><p style="background:#eee; padding:5px; border:1px solid #ccc;"><strong>INFO :</strong> <?= $msg ?></p><hr><?php endif; ?>
 
     <?php if($section == 'dashboard'): 
-        // CORRECTION DE L'ERREUR SQL ICI : Ajout des JOIN corrects
         $emp = $pdo->query("SELECT em.*, e.Nom, l.Titre 
                             FROM emprunter em 
                             JOIN etudiant e ON em.ID_Etudiant = e.ID_Etudiant 
