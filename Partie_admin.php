@@ -1,108 +1,22 @@
 <?php
 require_once 'config.php';
+require_once 'actions/Action Admin/emprunts.php';    
+require_once 'actions/Action Admin/Etudiant.php';     
+require_once 'actions/Action Admin/Livre.php';        
+require_once 'actions/Action Admin/messages.php';      
+require_once 'actions/Action Admin/reservations.php'; 
 $msg = "";
 $section = $_GET['section'] ?? 'dashboard';
-
-// =========================================================
-// TRAITEMENT DES ACTIONS (POST)
-// =========================================================
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = $_POST['action'];
-
-    try {
-        // --- GESTION LIVRES ---
-        if ($action === 'save_livre') {
-            $isbn = $_POST['isbn']; $titre = $_POST['titre']; $auteur = $_POST['auteur']; $cat = $_POST['categorie'];
-            $pdf = $_POST['current_pdf'] ?? null;
-            if (!empty($_FILES['pdf_livre']['name'])) {
-                $pdf = time() . "_" . basename($_FILES['pdf_livre']['name']);
-                move_uploaded_file($_FILES['pdf_livre']['tmp_name'], "uploads/" . $pdf);
-            }
-            //  chercher la Catégorie
-            $stmt = $pdo->prepare("SELECT ID_Categorie FROM categorie_livre WHERE Libelle=?");
-            $stmt->execute([$cat]);
-            $cat_id = $stmt->fetchColumn();
-            // Créer si n'existe pas
-            if (!$cat_id) {
-                $pdo->prepare("INSERT INTO categorie_livre (Libelle) VALUES (?)")->execute([$cat]);
-                $cat_id = $pdo->lastInsertId();
-            }
-            // Create/Update
-            if (isset($_POST['old_isbn'])) {
-                $pdo->prepare("UPDATE livre SET ISBN=?, Titre=?, Auteur=?, id_categorie=?, Fichier_PDF=? WHERE ISBN=?")
-                    ->execute([$isbn, $titre, $auteur, $cat_id, $pdf, $_POST['old_isbn']]);
-                $msg = "Livre modifié.";
-            } else {
-                $pdo->prepare("INSERT INTO livre (ISBN, Titre, Auteur, id_categorie, Fichier_PDF) VALUES (?, ?, ?, ?, ?)")
-                    ->execute([$isbn, $titre, $auteur, $cat_id, $pdf]);
-                $pdo->prepare("INSERT INTO exemplaire (ISBN, Etat) VALUES (?, 'Neuf')")->execute([$isbn]);
-                $msg = "Livre ajouté.";
-            }
-        }
-        elseif ($action === 'delete_livre') {
-            $pdo->prepare("DELETE FROM livre WHERE ISBN=?")->execute([$_POST['isbn']]);
-            $msg = "Livre supprimé.";
-        }
-
-        // --- GESTION ETUDIANTS ---
-        elseif ($action === 'save_etudiant') {
-            $nom=$_POST['nom']; $prenom=$_POST['prenom']; $email=$_POST['email']; $mdp=$_POST['mdp'];
-            if (!empty($_POST['id_etudiant'])) {
-                $pdo->prepare("UPDATE etudiant SET Nom=?, Prenom=?, Email=?, Mot_de_passe=? WHERE ID_Etudiant=?")
-                    ->execute([$nom, $prenom, $email, $mdp, $_POST['id_etudiant']]);
-                $msg = "Étudiant modifié.";
-                // si non on ajoute 
-            } else {
-                $pdo->prepare("INSERT INTO etudiant (Nom, Prenom, Email, Mot_de_passe, Date_Inscription) VALUES (?, ?, ?, ?, CURDATE())")
-                    ->execute([$nom, $prenom, $email, $mdp]);
-                $msg = "Étudiant créé.";
-            }
-        }
-        elseif ($action === 'toggle_ban') {
-            $pdo->prepare("UPDATE etudiant SET Statut = IF(Statut='Actif', 'Bloqué', 'Actif') WHERE ID_Etudiant = ?")->execute([$_POST['id']]);
-            $msg = "Statut changé.";
-        }
-        elseif ($action === 'delete_etudiant') {
-            $pdo->prepare("DELETE FROM etudiant WHERE ID_Etudiant=?")->execute([$_POST['id']]);
-            $msg = "Étudiant supprimé.";
-        }
-
-        // --- EMPRUNTS
-        elseif ($action === 'valider_resa') {
-            $id_res = $_POST['id'];
-            $info = $pdo->query("SELECT * FROM reservation WHERE ID_Reservation=$id_res")->fetch();
-            $ex = $pdo->query("SELECT ID_Exemplaire FROM exemplaire WHERE ISBN='{$info['ISBN']}' LIMIT 1")->fetch();
-            
-            $pdo->prepare("INSERT INTO emprunter (ID_Etudiant, ID_Exemplaire, Date_Emprunt, Date_Retour_Prevue) VALUES (?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 15 DAY))")->execute([$info['ID_Etudiant'], $ex['ID_Exemplaire']]);
-            $pdo->prepare("DELETE FROM reservation WHERE ID_Reservation=?")->execute([$id_res]);
-            $msg = "Réservation validée.";
-        }
-        // RESERVATIONS ---
-        elseif ($action === 'retour_livre') {
-            $pdo->prepare("UPDATE emprunter SET Date_Retour = CURDATE() WHERE ID_Emprunt=?")->execute([$_POST['id']]);
-            $msg = "Retour enregistré.";
-        }
-
-        // --- MESSAGERIE ---
-        elseif ($action === 'send_message') {
-            $pdo->prepare("INSERT INTO messages (ID_Etudiant, Sens, Contenu) VALUES (?, 'AdminVersEtudiant', ?)")
-                ->execute([$_POST['id_etudiant'], $_POST['message']]);
-            $msg = "✉️ Message envoyé à l'étudiant.";
-        }
-        elseif ($action === 'clear_chat') {
-            $pdo->prepare("DELETE FROM messages WHERE ID_Etudiant=?")->execute([$_POST['id_etudiant']]);
-            $msg = "Conversation effacée.";
-        }
-
-    } catch (Exception $e) { $msg = "Erreur : " . $e->getMessage(); }
-}
 ?>
+
 
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <title>Admin - Bibliothèque</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-Ss+8A4ckf5+E9gWZ8yecM+6x+PL2soMH6N9uZp9NvDRLRkL7v+5b6J/EEj3vYq0tT96+j1T3aQWw5+8RLs0nRg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="general.css">
 </head>
 <body>
 
